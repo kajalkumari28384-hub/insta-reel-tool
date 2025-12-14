@@ -1,0 +1,271 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ReelX Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f0f0f;
+            --card-bg: #1a1a1a;
+            --accent: #00f2ea;
+            --text: #ffffff;
+            --text-muted: #888888;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        
+        body { background-color: var(--bg-color); color: var(--text); padding-bottom: 50px; }
+
+        /* Header */
+        header {
+            padding: 20px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid #333;
+            position: sticky; top: 0; z-index: 100;
+        }
+        h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: 1px; }
+        h1 span { color: var(--accent); }
+
+        /* Controls */
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        
+        .search-box {
+            display: flex; gap: 10px; margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        input {
+            flex: 1; padding: 12px; border-radius: 8px; border: 1px solid #333;
+            background: #222; color: white; outline: none; transition: 0.3s;
+        }
+        input:focus { border-color: var(--accent); }
+
+        button {
+            padding: 12px 24px; border-radius: 8px; border: none; font-weight: 600;
+            cursor: pointer; transition: 0.2s;
+        }
+        .btn-primary { background: var(--accent); color: black; }
+        .btn-primary:hover { opacity: 0.8; }
+
+        /* Filter Tabs */
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; }
+        .filter-btn {
+            background: #222; color: #aaa; padding: 8px 16px; border-radius: 20px; font-size: 0.9rem;
+        }
+        .filter-btn.active { background: white; color: black; }
+
+        /* History Chips */
+        .history-section { margin-bottom: 20px; display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px; }
+        .chip {
+            background: #333; padding: 5px 12px; border-radius: 15px; font-size: 0.8rem; white-space: nowrap; cursor: pointer;
+        }
+        .chip:hover { background: #444; }
+
+        /* Grid Layout */
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 20px;
+        }
+
+        /* Card Design */
+        .card {
+            background: var(--card-bg); border-radius: 12px; overflow: hidden;
+            transition: transform 0.2s; position: relative;
+            border: 1px solid #333;
+        }
+        .card:hover { transform: translateY(-5px); border-color: var(--accent); }
+        
+        .thumb-container { position: relative; height: 350px; }
+        .thumb-container img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .info { padding: 15px; }
+        .stats { display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 10px; }
+        
+        .download-btn {
+            display: block; width: 100%; padding: 10px; text-align: center;
+            background: #333; color: white; text-decoration: none; border-radius: 6px; font-size: 0.9rem;
+        }
+        .download-btn:hover { background: #444; }
+
+        /* Downloaded Mark */
+        .check-mark {
+            position: absolute; top: 10px; right: 10px; background: #00ff00; color: black;
+            width: 25px; height: 25px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; opacity: 0; transition: 0.3s;
+        }
+        .card.downloaded .check-mark { opacity: 1; }
+        .card.downloaded { border-color: #00ff00; }
+
+        /* Loading */
+        .loader { text-align: center; color: var(--accent); margin: 20px; display: none; }
+
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>Reel<span>X</span> Pro</h1>
+</header>
+
+<div class="container">
+    
+    <div class="history-section" id="historyContainer">
+        </div>
+
+    <div class="search-box">
+        <input type="text" id="username" placeholder="Paste Link or Enter Username...">
+        <button class="btn-primary" onclick="loadReels()">Search</button>
+    </div>
+
+    <div class="filters">
+        <button class="filter-btn active" onclick="setSort('latest', this)">🔥 Latest</button>
+        <button class="filter-btn" onclick="setSort('popular', this)">❤️ Most Popular</button>
+        <button class="filter-btn" onclick="setSort('oldest', this)">⏳ Oldest</button>
+    </div>
+
+    <p id="statusMsg" style="text-align: center; color: gray; margin-bottom: 10px;"></p>
+    <div class="loader" id="loader">Fetching Reels... (Takes 10-20s)</div>
+
+    <div class="grid" id="results"></div>
+
+</div>
+
+<script>
+    // --- CONFIGURATION ---
+    // Yahan apna Render URL dalo
+    const BACKEND_URL = "https://your-backend-name.onrender.com/api/get-reels"; 
+
+    let currentSort = 'latest';
+
+    // --- ON LOAD ---
+    document.addEventListener("DOMContentLoaded", () => {
+        renderHistory();
+    });
+
+    // --- FUNCTIONS ---
+    
+    function setSort(mode, btn) {
+        currentSort = mode;
+        // Update UI
+        document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        // Reload if username is present
+        if(document.getElementById("username").value) loadReels();
+    }
+
+    async function loadReels() {
+        const inputVal = document.getElementById("username").value.trim();
+        if(!inputVal) return alert("Please enter a username or link");
+
+        // UI Updates
+        document.getElementById("loader").style.display = "block";
+        document.getElementById("results").innerHTML = "";
+        document.getElementById("statusMsg").innerText = "";
+
+        // Save to History
+        saveToHistory(inputVal);
+
+        try {
+            const response = await fetch(BACKEND_URL, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ username: inputVal, sort: currentSort })
+            });
+
+            const data = await response.json();
+            document.getElementById("loader").style.display = "none";
+
+            if (data.success) {
+                document.getElementById("statusMsg").innerText = `Showing results for @${data.username}`;
+                renderGrid(data.reels);
+            } else {
+                document.getElementById("statusMsg").innerText = "Error: " + data.error;
+            }
+
+        } catch (error) {
+            document.getElementById("loader").style.display = "none";
+            document.getElementById("statusMsg").innerText = "Server Error. Check Backend.";
+        }
+    }
+
+    function renderGrid(reels) {
+        const grid = document.getElementById("results");
+        // Get downloaded list from LocalStorage
+        const downloadedIds = JSON.parse(localStorage.getItem('downloadedReels')) || [];
+
+        reels.forEach(reel => {
+            const isDownloaded = downloadedIds.includes(reel.id);
+            const cardClass = isDownloaded ? 'card downloaded' : 'card';
+
+            const html = `
+                <div class="${cardClass}" id="card-${reel.id}">
+                    <div class="thumb-container">
+                        <img src="${reel.thumbnail}" loading="lazy">
+                        <div class="check-mark">✓</div>
+                    </div>
+                    <div class="info">
+                        <div class="stats">
+                            <span>❤️ ${formatNumber(reel.likes)}</span>
+                            <span>📅 ${reel.date}</span>
+                        </div>
+                        <a href="${reel.url}" target="_blank" class="download-btn" onclick="markAsDownloaded('${reel.id}')">
+                            ⬇ Download Video
+                        </a>
+                    </div>
+                </div>
+            `;
+            grid.innerHTML += html;
+        });
+    }
+
+    // --- HISTORY & STORAGE LOGIC ---
+
+    function saveToHistory(term) {
+        let history = JSON.parse(localStorage.getItem('searchHistory')) || [];
+        // Extract username if link
+        if(term.includes('instagram.com')) term = term.split('instagram.com/')[1].split('/')[0];
+        
+        if(!history.includes(term)) {
+            history.unshift(term); // Add to start
+            if(history.length > 5) history.pop(); // Keep only 5
+            localStorage.setItem('searchHistory', JSON.stringify(history));
+            renderHistory();
+        }
+    }
+
+    function renderHistory() {
+        const container = document.getElementById("historyContainer");
+        const history = JSON.parse(localStorage.getItem('searchHistory')) || [];
+        container.innerHTML = history.map(h => `<div class="chip" onclick="fillSearch('${h}')">🕒 ${h}</div>`).join('');
+    }
+
+    function fillSearch(val) {
+        document.getElementById("username").value = val;
+        loadReels();
+    }
+
+    function markAsDownloaded(id) {
+        let downloads = JSON.parse(localStorage.getItem('downloadedReels')) || [];
+        if(!downloads.includes(id)) {
+            downloads.push(id);
+            localStorage.setItem('downloadedReels', JSON.stringify(downloads));
+            
+            // UI Update immediately without reload
+            const card = document.getElementById(`card-${id}`);
+            if(card) card.classList.add('downloaded');
+        }
+    }
+
+    function formatNumber(num) {
+        if(num >= 1000000) return (num/1000000).toFixed(1) + 'M';
+        if(num >= 1000) return (num/1000).toFixed(1) + 'k';
+        return num;
+    }
+
+</script>
+
+</body>
+</html>
